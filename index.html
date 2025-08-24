@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NEET Progress Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3498db">
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js")
+      .then(() => console.log("Service Worker Registered"));
+  }
+</script>
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/site.webmanifest">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f5f7fa;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
+    }
+    label {
+      font-weight: bold;
+    }
+    input {
+      padding: 8px;
+      margin: 5px 0 15px 0;
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    canvas {
+      margin-top: 30px;
+    }
+    h2 {
+      margin-top: 40px;
+      text-align: center;
+      color: #34495e;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 25px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #3498db;
+      color: white;
+    }
+    tr:nth-child(even) {
+      background: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h1>📊 NEET Test Progress Tracker</h1>
+  <div class="container">
+    <form id="scoreForm">
+      <label for="testName">Test Name/Number:</label>
+      <input type="text" id="testName" required>
+
+      <label for="physics">Physics (out of 180):</label>
+      <input type="number" id="physics" max="180" min="0" required>
+
+      <label for="chemistry">Chemistry (out of 180):</label>
+      <input type="number" id="chemistry" max="180" min="0" required>
+
+      <label for="biology">Biology (out of 360):</label>
+      <input type="number" id="biology" max="360" min="0" required>
+
+      <label for="batchRank">Batch Rank:</label>
+      <input type="number" id="batchRank" min="1" required>
+
+      <label for="campusRank">Campus Rank:</label>
+      <input type="number" id="campusRank" min="1" required>
+
+      <label for="totalStudents">Total Students Appeared:</label>
+      <input type="number" id="totalStudents" min="1" required>
+
+      <button type="submit">Add Test</button>
+    </form>
+
+    <h2>Total Score Progress</h2>
+    <canvas id="progressChart"></canvas>
+
+    <h2>Batch Rank Progress</h2>
+    <canvas id="batchChart"></canvas>
+
+    <h2>Campus Rank Progress</h2>
+    <canvas id="campusChart"></canvas>
+
+    <h2>📋 Test Summary</h2>
+    <table id="summaryTable">
+      <thead>
+        <tr>
+          <th>Test</th>
+          <th>Physics</th>
+          <th>Chemistry</th>
+          <th>Biology</th>
+          <th>Total</th>
+          <th>Batch Rank</th>
+          <th>Campus Rank</th>
+          <th>Total Students</th>
+          <th>% Score</th>
+          <th>Percentile</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <button onclick="resetData()" style="margin-top:20px; background:#e74c3c;">Reset All Data</button>
+  </div>
+
+  <script>
+    let testData = JSON.parse(localStorage.getItem('neetScores')) || [];
+
+    const progressCtx = document.getElementById('progressChart').getContext('2d');
+    const batchCtx = document.getElementById('batchChart').getContext('2d');
+    const campusCtx = document.getElementById('campusChart').getContext('2d');
+    const tableBody = document.querySelector("#summaryTable tbody");
+
+    function renderTable() {
+      tableBody.innerHTML = "";
+      testData.forEach(item => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${item.test}</td>
+          <td>${item.physics}</td>
+          <td>${item.chemistry}</td>
+          <td>${item.biology}</td>
+          <td>${item.total}</td>
+          <td>${item.batchRank}</td>
+          <td>${item.campusRank}</td>
+          <td>${item.totalStudents}</td>
+          <td>${item.percentage.toFixed(2)}%</td>
+          <td>${item.percentile.toFixed(2)}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+
+    let scoreChart = new Chart(progressCtx, {
+      type: 'line',
+      data: {
+        labels: testData.map(item => item.test),
+        datasets: [{
+          label: 'Total Score (out of 720)',
+          data: testData.map(item => item.total),
+          borderColor: '#3498db',
+          backgroundColor: 'rgba(52, 152, 219, 0.2)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 5
+        }]
+      },
+      options: {
+        scales: {
+          y: { beginAtZero: true, max: 720 }
+        }
+      }
+    });
+
+    let batchChart = new Chart(batchCtx, {
+      type: 'line',
+      data: {
+        labels: testData.map(item => item.test),
+        datasets: [{
+          label: 'Batch Rank',
+          data: testData.map(item => item.batchRank),
+          borderColor: '#e67e22',
+          backgroundColor: 'rgba(230, 126, 34, 0.2)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 5
+        }]
+      },
+      options: {
+        scales: {
+          y: { beginAtZero: true, reverse: true, title: { display: true, text: 'Rank' } }
+        }
+      }
+    });
+
+    let campusChart = new Chart(campusCtx, {
+      type: 'line',
+      data: {
+        labels: testData.map(item => item.test),
+        datasets: [{
+          label: 'Campus Rank',
+          data: testData.map(item => item.campusRank),
+          borderColor: '#2ecc71',
+          backgroundColor: 'rgba(46, 204, 113, 0.2)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 5
+        }]
+      },
+      options: {
+        scales: {
+          y: { beginAtZero: true, reverse: true, title: { display: true, text: 'Rank' } }
+        }
+      }
+    });
+
+    renderTable();
+
+    document.getElementById('scoreForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const testName = document.getElementById('testName').value;
+      const physics = parseInt(document.getElementById('physics').value);
+      const chemistry = parseInt(document.getElementById('chemistry').value);
+      const biology = parseInt(document.getElementById('biology').value);
+      const batchRank = parseInt(document.getElementById('batchRank').value);
+      const campusRank = parseInt(document.getElementById('campusRank').value);
+      const totalStudents = parseInt(document.getElementById('totalStudents').value);
+      const total = physics + chemistry + biology;
+
+      const percentage = (total / 720) * 100;
+      const percentile = ((totalStudents - campusRank) / totalStudents) * 100;
+
+      testData.push({ test: testName, physics, chemistry, biology, total, batchRank, campusRank, totalStudents, percentage, percentile });
+      localStorage.setItem('neetScores', JSON.stringify(testData));
+
+      scoreChart.data.labels.push(testName);
+      scoreChart.data.datasets[0].data.push(total);
+      scoreChart.update();
+
+      batchChart.data.labels.push(testName);
+      batchChart.data.datasets[0].data.push(batchRank);
+      batchChart.update();
+
+      campusChart.data.labels.push(testName);
+      campusChart.data.datasets[0].data.push(campusRank);
+      campusChart.update();
+
+      renderTable();
+      this.reset();
+    });
+
+    function resetData() {
+      if(confirm("Are you sure you want to reset all data?")) {
+        localStorage.removeItem('neetScores');
+        testData = [];
+
+        scoreChart.data.labels = [];
+        scoreChart.data.datasets[0].data = [];
+        scoreChart.update();
+
+        batchChart.data.labels = [];
+        batchChart.data.datasets[0].data = [];
+        batchChart.update();
+
+        campusChart.data.labels = [];
+        campusChart.data.datasets[0].data = [];
+        campusChart.update();
+
+        renderTable();
+      }
+    }
+  </script>
+</body>
+</html>
