@@ -2,292 +2,272 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NEET Progress Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#3498db">
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("service-worker.js")
-      .then(() => console.log("Service Worker Registered"));
-  }
-</script>
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="manifest" href="/site.webmanifest">
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
       background: #f5f7fa;
+      padding: 20px;
+      max-width: 900px;
+      margin: auto;
     }
     h1 {
       text-align: center;
       color: #2c3e50;
     }
-    .container {
-      max-width: 900px;
-      margin: auto;
-      background: white;
+    form, .stats, .dashboard, .buttons {
+      background: #fff;
       padding: 20px;
       border-radius: 12px;
-      box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
-    }
-    label {
-      font-weight: bold;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
     }
     input {
-      padding: 8px;
-      margin: 5px 0 15px 0;
-      width: 100%;
+      padding: 10px;
+      margin: 8px;
+      border-radius: 8px;
       border: 1px solid #ccc;
-      border-radius: 6px;
+      width: calc(100% - 24px);
     }
     button {
-      background: #3498db;
-      color: white;
+      padding: 10px 20px;
+      margin: 5px;
       border: none;
-      padding: 10px 15px;
-      border-radius: 6px;
+      border-radius: 8px;
+      background: #3498db;
+      color: #fff;
       cursor: pointer;
     }
-    button:hover {
-      background: #2980b9;
-    }
+    button:hover { background: #2980b9; }
     canvas {
-      margin-top: 30px;
-    }
-    h2 {
-      margin-top: 40px;
-      text-align: center;
-      color: #34495e;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 25px;
-    }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: center;
-    }
-    th {
-      background: #3498db;
-      color: white;
-    }
-    tr:nth-child(even) {
-      background: #f2f2f2;
+      margin: 20px 0;
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
   </style>
 </head>
 <body>
-  <h1>📊 NEET Test Progress Tracker</h1>
-  <div class="container">
-    <form id="scoreForm">
-      <label for="testName">Test Name/Number:</label>
-      <input type="text" id="testName" required>
 
-      <label for="physics">Physics (out of 180):</label>
-      <input type="number" id="physics" max="180" min="0" required>
+<h1>📊 NEET Progress Tracker</h1>
 
-      <label for="chemistry">Chemistry (out of 180):</label>
-      <input type="number" id="chemistry" max="180" min="0" required>
+<form id="scoreForm">
+  <input type="text" id="testName" placeholder="Test Name (e.g. Major Test 1)">
+  <input type="date" id="testDate">
+  <input type="number" id="physics" placeholder="Physics (out of 180)" required>
+  <input type="number" id="chemistry" placeholder="Chemistry (out of 180)" required>
+  <input type="number" id="biology" placeholder="Biology (out of 360)" required>
+  <input type="number" id="batchRank" placeholder="Batch Rank" required>
+  <input type="number" id="batchTotal" placeholder="Total in Batch" required>
+  <input type="number" id="campusRank" placeholder="Campus Rank" required>
+  <input type="number" id="campusTotal" placeholder="Total in Campus" required>
+  <button type="submit">Add Test</button>
+</form>
 
-      <label for="biology">Biology (out of 360):</label>
-      <input type="number" id="biology" max="360" min="0" required>
+<div class="stats">
+  <h3>📌 Latest Test Stats</h3>
+  <p id="latestStats">No data yet</p>
+</div>
 
-      <label for="batchRank">Batch Rank:</label>
-      <input type="number" id="batchRank" min="1" required>
+<div class="dashboard">
+  <h3>📈 Performance Dashboard</h3>
+  <p id="dashboardStats">No data yet</p>
+</div>
 
-      <label for="campusRank">Campus Rank:</label>
-      <input type="number" id="campusRank" min="1" required>
+<div class="buttons">
+  <button onclick="exportCSV()">⬇️ Export CSV</button>
+  <button onclick="exportExcel()">⬇️ Export Excel</button>
+  <button style="background:#e74c3c" onclick="resetData()">🗑 Reset Data</button>
+</div>
 
-      <label for="totalStudents">Total Students Appeared:</label>
-      <input type="number" id="totalStudents" min="1" required>
+<canvas id="totalChart"></canvas>
+<canvas id="physicsChart"></canvas>
+<canvas id="chemistryChart"></canvas>
+<canvas id="biologyChart"></canvas>
 
-      <button type="submit">Add Test</button>
-    </form>
+<script>
+  let tests = JSON.parse(localStorage.getItem("neetTests")) || [];
 
-    <h2>Total Score Progress</h2>
-    <canvas id="progressChart"></canvas>
+  const totalCtx = document.getElementById("totalChart").getContext("2d");
+  const physicsCtx = document.getElementById("physicsChart").getContext("2d");
+  const chemistryCtx = document.getElementById("chemistryChart").getContext("2d");
+  const biologyCtx = document.getElementById("biologyChart").getContext("2d");
 
-    <h2>Batch Rank Progress</h2>
-    <canvas id="batchChart"></canvas>
+  let totalChart, physicsChart, chemistryChart, biologyChart;
 
-    <h2>Campus Rank Progress</h2>
-    <canvas id="campusChart"></canvas>
+  function updateCharts() {
+    const labels = tests.map((t, i) => t.name || `Test ${i+1}`);
+    const totalScores = tests.map(t => t.total);
+    const physicsScores = tests.map(t => t.physics);
+    const chemistryScores = tests.map(t => t.chemistry);
+    const biologyScores = tests.map(t => t.biology);
 
-    <h2>📋 Test Summary</h2>
-    <table id="summaryTable">
-      <thead>
-        <tr>
-          <th>Test</th>
-          <th>Physics</th>
-          <th>Chemistry</th>
-          <th>Biology</th>
-          <th>Total</th>
-          <th>Batch Rank</th>
-          <th>Campus Rank</th>
-          <th>Total Students</th>
-          <th>% Score</th>
-          <th>Percentile</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    if (totalChart) totalChart.destroy();
+    if (physicsChart) physicsChart.destroy();
+    if (chemistryChart) chemistryChart.destroy();
+    if (biologyChart) biologyChart.destroy();
 
-    <button onclick="resetData()" style="margin-top:20px; background:#e74c3c;">Reset All Data</button>
-  </div>
+    totalChart = new Chart(totalCtx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Total Score (720)",
+          data: totalScores,
+          borderColor: "blue",
+          fill: false
+        }]
+      }
+    });
 
-  <script>
-    let testData = JSON.parse(localStorage.getItem('neetScores')) || [];
+    physicsChart = new Chart(physicsCtx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Physics (180)",
+          data: physicsScores,
+          borderColor: "red",
+          fill: false
+        }]
+      }
+    });
 
-    const progressCtx = document.getElementById('progressChart').getContext('2d');
-    const batchCtx = document.getElementById('batchChart').getContext('2d');
-    const campusCtx = document.getElementById('campusChart').getContext('2d');
-    const tableBody = document.querySelector("#summaryTable tbody");
+    chemistryChart = new Chart(chemistryCtx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Chemistry (180)",
+          data: chemistryScores,
+          borderColor: "green",
+          fill: false
+        }]
+      }
+    });
 
-    function renderTable() {
-      tableBody.innerHTML = "";
-      testData.forEach(item => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${item.test}</td>
-          <td>${item.physics}</td>
-          <td>${item.chemistry}</td>
-          <td>${item.biology}</td>
-          <td>${item.total}</td>
-          <td>${item.batchRank}</td>
-          <td>${item.campusRank}</td>
-          <td>${item.totalStudents}</td>
-          <td>${item.percentage.toFixed(2)}%</td>
-          <td>${item.percentile.toFixed(2)}</td>
-        `;
-        tableBody.appendChild(row);
-      });
+    biologyChart = new Chart(biologyCtx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Biology (360)",
+          data: biologyScores,
+          borderColor: "purple",
+          fill: false
+        }]
+      }
+    });
+  }
+
+  function updateStats() {
+    if (tests.length === 0) return;
+    const last = tests[tests.length - 1];
+    const percentage = ((last.total / 720) * 100).toFixed(2);
+    const batchPercentile = (((last.batchTotal - last.batchRank) / last.batchTotal) * 100).toFixed(2);
+    const campusPercentile = (((last.campusTotal - last.campusRank) / last.campusTotal) * 100).toFixed(2);
+
+    document.getElementById("latestStats").innerHTML = `
+      <b>${last.name || "Test " + tests.length}</b> (${last.date || "No Date"})<br>
+      Total: <b>${last.total}/720</b> (${percentage}%)<br>
+      Physics: ${last.physics}/180 | Chemistry: ${last.chemistry}/180 | Biology: ${last.biology}/360 <br>
+      Batch Rank: ${last.batchRank}/${last.batchTotal} → Percentile: ${batchPercentile}%<br>
+      Campus Rank: ${last.campusRank}/${last.campusTotal} → Percentile: ${campusPercentile}%
+    `;
+  }
+
+  function updateDashboard() {
+    if (tests.length === 0) return;
+    const avg = arr => (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2);
+    const best = arr => Math.max(...arr);
+
+    const avgPhysics = avg(tests.map(t=>t.physics));
+    const avgChemistry = avg(tests.map(t=>t.chemistry));
+    const avgBiology = avg(tests.map(t=>t.biology));
+    const avgTotal = avg(tests.map(t=>t.total));
+
+    const bestPhysics = best(tests.map(t=>t.physics));
+    const bestChemistry = best(tests.map(t=>t.chemistry));
+    const bestBiology = best(tests.map(t=>t.biology));
+    const bestTotal = best(tests.map(t=>t.total));
+
+    document.getElementById("dashboardStats").innerHTML = `
+      <b>Average Scores:</b><br>
+      Physics: ${avgPhysics}/180 | Chemistry: ${avgChemistry}/180 | Biology: ${avgBiology}/360 | Total: ${avgTotal}/720 <br><br>
+      <b>Best Scores:</b><br>
+      Physics: ${bestPhysics}/180 | Chemistry: ${bestChemistry}/180 | Biology: ${bestBiology}/360 | Total: ${bestTotal}/720
+    `;
+  }
+
+  function exportCSV() {
+    if (tests.length === 0) return alert("No data to export");
+    let csv = "Test,Date,Physics,Chemistry,Biology,Total,Batch Rank/Total,Campus Rank/Total\n";
+    tests.forEach((t,i)=>{
+      csv += `${t.name || "Test " + (i+1)},${t.date || ""},${t.physics},${t.chemistry},${t.biology},${t.total},${t.batchRank}/${t.batchTotal},${t.campusRank}/${t.campusTotal}\n`;
+    });
+    let blob = new Blob([csv], {type:"text/csv"});
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "neet_progress.csv";
+    link.click();
+  }
+
+  function exportExcel() {
+    if (tests.length === 0) return alert("No data to export");
+    let table = [["Test","Date","Physics","Chemistry","Biology","Total","Batch Rank/Total","Campus Rank/Total"]];
+    tests.forEach((t,i)=>{
+      table.push([t.name || "Test " + (i+1), t.date || "", t.physics,t.chemistry,t.biology,t.total,`${t.batchRank}/${t.batchTotal}`,`${t.campusRank}/${t.campusTotal}`]);
+    });
+    let csv = table.map(row => row.join("\t")).join("\n");
+    let blob = new Blob([csv], {type:"application/vnd.ms-excel"});
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "neet_progress.xls";
+    link.click();
+  }
+
+  function resetData() {
+    if (confirm("⚠️ Are you sure you want to reset all data?")) {
+      localStorage.removeItem("neetTests");
+      tests = [];
+      updateCharts();
+      document.getElementById("latestStats").innerText = "No data yet";
+      document.getElementById("dashboardStats").innerText = "No data yet";
     }
+  }
 
-    let scoreChart = new Chart(progressCtx, {
-      type: 'line',
-      data: {
-        labels: testData.map(item => item.test),
-        datasets: [{
-          label: 'Total Score (out of 720)',
-          data: testData.map(item => item.total),
-          borderColor: '#3498db',
-          backgroundColor: 'rgba(52, 152, 219, 0.2)',
-          fill: true,
-          tension: 0.2,
-          pointRadius: 5
-        }]
-      },
-      options: {
-        scales: {
-          y: { beginAtZero: true, max: 720 }
-        }
-      }
-    });
+  document.getElementById("scoreForm").addEventListener("submit", function(e) {
+    e.preventDefault();
 
-    let batchChart = new Chart(batchCtx, {
-      type: 'line',
-      data: {
-        labels: testData.map(item => item.test),
-        datasets: [{
-          label: 'Batch Rank',
-          data: testData.map(item => item.batchRank),
-          borderColor: '#e67e22',
-          backgroundColor: 'rgba(230, 126, 34, 0.2)',
-          fill: true,
-          tension: 0.2,
-          pointRadius: 5
-        }]
-      },
-      options: {
-        scales: {
-          y: { beginAtZero: true, reverse: true, title: { display: true, text: 'Rank' } }
-        }
-      }
-    });
+    const name = document.getElementById("testName").value.trim();
+    const date = document.getElementById("testDate").value;
+    const physics = parseInt(document.getElementById("physics").value);
+    const chemistry = parseInt(document.getElementById("chemistry").value);
+    const biology = parseInt(document.getElementById("biology").value);
+    const batchRank = parseInt(document.getElementById("batchRank").value);
+    const batchTotal = parseInt(document.getElementById("batchTotal").value);
+    const campusRank = parseInt(document.getElementById("campusRank").value);
+    const campusTotal = parseInt(document.getElementById("campusTotal").value);
 
-    let campusChart = new Chart(campusCtx, {
-      type: 'line',
-      data: {
-        labels: testData.map(item => item.test),
-        datasets: [{
-          label: 'Campus Rank',
-          data: testData.map(item => item.campusRank),
-          borderColor: '#2ecc71',
-          backgroundColor: 'rgba(46, 204, 113, 0.2)',
-          fill: true,
-          tension: 0.2,
-          pointRadius: 5
-        }]
-      },
-      options: {
-        scales: {
-          y: { beginAtZero: true, reverse: true, title: { display: true, text: 'Rank' } }
-        }
-      }
-    });
+    const total = physics + chemistry + biology;
 
-    renderTable();
+    tests.push({ name, date, physics, chemistry, biology, total, batchRank, batchTotal, campusRank, campusTotal });
+    localStorage.setItem("neetTests", JSON.stringify(tests));
 
-    document.getElementById('scoreForm').addEventListener('submit', function(e) {
-      e.preventDefault();
+    updateCharts();
+    updateStats();
+    updateDashboard();
+    e.target.reset();
+  });
 
-      const testName = document.getElementById('testName').value;
-      const physics = parseInt(document.getElementById('physics').value);
-      const chemistry = parseInt(document.getElementById('chemistry').value);
-      const biology = parseInt(document.getElementById('biology').value);
-      const batchRank = parseInt(document.getElementById('batchRank').value);
-      const campusRank = parseInt(document.getElementById('campusRank').value);
-      const totalStudents = parseInt(document.getElementById('totalStudents').value);
-      const total = physics + chemistry + biology;
+  // Load saved data
+  updateCharts();
+  updateStats();
+  updateDashboard();
+</script>
 
-      const percentage = (total / 720) * 100;
-      const percentile = ((totalStudents - campusRank) / totalStudents) * 100;
-
-      testData.push({ test: testName, physics, chemistry, biology, total, batchRank, campusRank, totalStudents, percentage, percentile });
-      localStorage.setItem('neetScores', JSON.stringify(testData));
-
-      scoreChart.data.labels.push(testName);
-      scoreChart.data.datasets[0].data.push(total);
-      scoreChart.update();
-
-      batchChart.data.labels.push(testName);
-      batchChart.data.datasets[0].data.push(batchRank);
-      batchChart.update();
-
-      campusChart.data.labels.push(testName);
-      campusChart.data.datasets[0].data.push(campusRank);
-      campusChart.update();
-
-      renderTable();
-      this.reset();
-    });
-
-    function resetData() {
-      if(confirm("Are you sure you want to reset all data?")) {
-        localStorage.removeItem('neetScores');
-        testData = [];
-
-        scoreChart.data.labels = [];
-        scoreChart.data.datasets[0].data = [];
-        scoreChart.update();
-
-        batchChart.data.labels = [];
-        batchChart.data.datasets[0].data = [];
-        batchChart.update();
-
-        campusChart.data.labels = [];
-        campusChart.data.datasets[0].data = [];
-        campusChart.update();
-
-        renderTable();
-      }
-    }
-  </script>
 </body>
 </html>
